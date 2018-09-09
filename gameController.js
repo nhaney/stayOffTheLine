@@ -1,9 +1,9 @@
 var myGamePiece;
 var waterArea;
 var enemies = new Array();
-var gameController = new gameStateController();
+var gameControl;
 
-class gameStateController()
+class gameStateController
 {
 	/*things gameStateController will need to keep track of:
 		-score
@@ -12,19 +12,32 @@ class gameStateController()
 		-difficulty multiplier, difficulty timer, game timer, enem timer all can be here instead of globals
 	*/
 
-	contructor()
+	constructor()
 	{
 		this.diffTimer = 0;
 		this.diffMulti = 0;
 		this.gameTimer = 0;
 		this.enemTimer = 0;
 		this.score = 0;
-		this.isPaused = true;
+		this.isPaused = false;
 		this.isGameOver = false;
+	}
+
+	updateScore()
+	{
+		var ctx = myGameArea.context;
+		ctx.font = "30px Comic Sans MS";
+		ctx.fillStyle = "red";
+		ctx.textAlign = "left";
+		if(!this.isGameOver)
+			ctx.fillText("Score: " + this.score, 10, 50);
+		else
+			ctx.fillText("Game Over, You Scored: " + this.score, 10, 50);
 	}
 }
 
 function startGame() {
+	gameControl = new gameStateController();
     myGameArea.start();
     waterArea = new component(800,550, "lightblue", 0, 100);
     myGamePiece = new player(32, 32, ["fish1.png","fish2.png"], 400, 275, "image", true);
@@ -60,11 +73,13 @@ function updateGameArea() {
     
     if (myGameArea.keys && myGameArea.keys[37]) {
     	myGamePiece.speedX = -5;
-    	myGamePiece.isRight = false;
+    	if(!gameControl.isPaused)
+    		myGamePiece.isRight = false;
     }
     if (myGameArea.keys && myGameArea.keys[39]) {
     	myGamePiece.speedX = 5; 
-    	myGamePiece.isRight = true;
+    	if(!gameControl.isPaused)
+    		myGamePiece.isRight = true;
     }
     if (myGameArea.keys && myGameArea.keys[38]) {
     	myGamePiece.speedY = -5; 
@@ -84,40 +99,91 @@ function updateGameArea() {
     //get player
     myGamePiece.newPos();   
     myGamePiece.update();
+
+    gameControl.updateScore();
+
+    //check for collision with player, hooks and bait
+    if(!gameControl.isGameOver)
+    {
+	    var j = 0;
+	    for(var i = 0; i < enemies.length; i++)
+	    {
+	    	for(j = 0; j < enemies[i].linesArray.length; j++)
+	    	{
+	    		if(myGamePiece.checkCollision(enemies[i].linesArray[j].hook))
+	    		{
+	    			//pause + gameover if player hits hook
+	    			gameControl.isPaused = true;
+	    			gameControl.isGameOver = true;
+	    			enemies[i].linesArray[j].isReeling = true;
+	    			myGamePiece.hookAttached = enemies[i].linesArray[j].hook;
+	    		}
+
+	    		if(enemies[i].linesArray[j].hasBait)
+	    		{
+	    			if(myGamePiece.checkCollision(enemies[i].linesArray[j].lineBait))
+	    			{
+	    				gameControl.score += 5;
+	    				enemies[i].linesArray[j].hasBait = false;
+	    				delete enemies[i].linesArray[j].lineBait;
+	    			}
+	    		}
+	    	}
+	    }
+	}
+
+	var tempEnem;
+	//checks if enemies are off screen, deletes if they are
+	for(var i = 0; i < enemies.length; i++)
+	{
+		tempEnem = enemies[i];
+		if(tempEnem.isOffScreen())
+		{
+			enemies.splice(i,1);
+			delete tempEnem;
+			i--;
+		}
+	}
     
-    gameTimer++;
-    diffTimer++;
-    enemTimer++;
+    //increments game times (if game is not paused)
+    if(!gameControl.isPaused)
+   	{ 
+   		gameControl.gameTimer++;
+	    gameControl.diffTimer++;
+	    gameControl.enemTimer++;
+	    if(gameControl.gameTimer % 60 == 0)
+	    	gameControl.score++;
+	}
 
     //spawns enemy based on difficulty
-    if(enemTimer >= ((60 * 10) - (60 * (diffMulti - 1))))
+    if(gameControl.enemTimer >= ((60 * 10) - (60 * (gameControl.diffMulti - 1))))
     {
-    	if(diffMulti < 3)
+    	if(gameControl.diffMulti < 3)
     	{
     		generateEnemy();
-    		enemTimer = 0;
+    		gameControl.enemTimer = 0;
     	}
-    	else if(diffMulti < 6)
+    	else if(gameControl.diffMulti < 6)
     	{
     		generateEnemy();
     		generateEnemy();
-    		enemTimer = 0;
+    		gameControl.enemTimer = 0;
     	}
     	else
     	{
     		generateEnemy();
     		generateEnemy();
     		generateEnemy();
-    		enemTimer = 0;
+    		gameControl.enemTimer = 0;
     	}
 
     }
     //increase difficulty every 10 seconds
-    if(diffTimer >= ((60 * 10)))
+    if(gameControl.diffTimer >= ((60 * 10)))
     {
-    	if(diffMulti != 10)
-    		diffMulti++;
-    	diffTimer = 0;
+    	if(gameControl.diffMulti != 10)
+    		gameControl.diffMulti++;
+    	gameControl.diffTimer = 0;
     }
 }
 
@@ -170,6 +236,19 @@ class component{
 		    ctx.fillRect(this.x, this.y, this.width, this.height);
 		}
     }
+
+    checkCollision(otherComponent)
+	{
+		//checks if this component is within another
+		if(this.x < otherComponent.x + otherComponent.width && this.x + this.width > otherComponent.x 
+			&& this.y < otherComponent.y + otherComponent.height
+			&& this.y + this.height > otherComponent.y)
+		{
+			return true;
+		}
+
+		return false;
+	}
 }
 
 class player extends component
@@ -179,6 +258,7 @@ class player extends component
 		super(width,height,images,x,y,type,isRight);
 		this.playerAnimCount = 0;
 		this.curPlayerAnimIndex = 0;
+		this.hookAttached = null;
 	}
 
 	updateAnim()
@@ -202,58 +282,67 @@ class player extends component
 
 	newPos()
 	{
-		var borderCollisionX = false;
-    	var borderCollisionY = false;
+		if(!gameControl.isPaused)
+		{
+			var borderCollisionX = false;
+	    	var borderCollisionY = false;
 
-    	if(this.x + this.speedX > myGameArea.canvas.width - this.width)
-    	{
-    		this.x = this.x;
-    		borderCollisionX = true;
+	    	if(this.x + this.speedX > myGameArea.canvas.width - this.width)
+	    	{
+	    		this.x = this.x;
+	    		borderCollisionX = true;
 
-    	}
-    	if(this.x + this.speedX < 0)
-    	{
-    		this.x = this.x;
-    		borderCollisionX = true;
-    	}
-    	if(this.y + this.speedY > myGameArea.canvas.height - this.height)
-    	{
-    		this.y = this.y;
-    		borderCollisionY = true;
-    	}
-    	if(this.y + this.speedY < 100)
-    	{
-    		this.y = this.y;
-    		borderCollisionY = true;
-    	}
-    	if(!borderCollisionX)
-    	{
-    		this.x += this.speedX; 
-    	}    
-    	if(!borderCollisionY)
-    	{
-    		this.y += this.speedY;
-    		//gravity underwater
-    		this.y += 0.5;
-    	}	
+	    	}
+	    	if(this.x + this.speedX < 0)
+	    	{
+	    		this.x = this.x;
+	    		borderCollisionX = true;
+	    	}
+	    	if(this.y + this.speedY > myGameArea.canvas.height - this.height)
+	    	{
+	    		this.y = this.y;
+	    		borderCollisionY = true;
+	    	}
+	    	if(this.y + this.speedY < 100)
+	    	{
+	    		this.y = this.y;
+	    		borderCollisionY = true;
+	    	}
+	    	if(!borderCollisionX)
+	    	{
+	    		this.x += this.speedX; 
+	    	}    
+	    	if(!borderCollisionY)
+	    	{
+	    		this.y += this.speedY;
+	    		//gravity underwater
+	    		this.y += 0.5;
+	    	}	
 
-    	if(this.speedX != 0 || this.speedY != 0)
-	    {
-	    	this.playerAnimCount++;
-	    }  
-	    else
-	    {
-	    	this.playerAnimCount = 0;
-	    	this.curPlayerAnimIndex = 0;
-	    	this.image.src = this.images[this.curPlayerAnimIndex];
-	    	
-    	}    
-    	this.updateAnim();         
+	    	if(this.speedX != 0 || this.speedY != 0)
+		    {
+		    	this.playerAnimCount++;
+		    }  
+		    else
+		    {
+		    	this.playerAnimCount = 0;
+		    	this.curPlayerAnimIndex = 0;
+		    	this.image.src = this.images[this.curPlayerAnimIndex];
+		    	
+	    	}    
+	    	this.updateAnim();   
+    	}
+    	if(gameControl.isGameOver)
+    	{
+    		this.loseAnimation();
+    	}      
 	}
 
-	checkCollision()
+	loseAnimation()
 	{
-
+		//later I will make fish turn to face angle of line, for now I do not need this
+		this.x = this.hookAttached.x;
+		this.y = this.hookAttached.y;
 	}
 }
 
@@ -278,15 +367,15 @@ function generateEnemy()
 		newIsRight = false;
 	}
 	//randomly generate speed later
-	var newSpeed = randomIntFromInterval(1,diffMulti);
+	var newSpeed = randomIntFromInterval(1,gameControl.diffMulti);
 	var newNumPoles;
-	if(diffMulti == 1)
+	if(gameControl.diffMulti == 1)
 		newNumPoles = 1;
-	else if(diffMulti < 4)
+	else if(gameControl.diffMulti < 4)
 	{
 		newNumPoles = randomIntFromInterval(1,2);
 	}
-	else if(diffMulti < 7)
+	else if(gameControl.diffMulti < 7)
 	{
 		newNumPoles = randomIntFromInterval(1,3);
 	}
@@ -318,21 +407,24 @@ class enemy extends component
 
 	newPos()
 	{
-		//need to add bobbing up and down here
-		if(this.isRight)
+		if(!gameControl.isPaused)
 		{
-			this.x += this.speedX;
-			for(var i = 0; i < this.startingPositions.length; i++)
+			//need to add bobbing up and down here
+			if(this.isRight)
 			{
-				this.startingPositions[i] += this.speedX;
+				this.x += this.speedX;
+				for(var i = 0; i < this.startingPositions.length; i++)
+				{
+					this.startingPositions[i] += this.speedX;
+				}
 			}
-		}
-		else
-		{
-			this.x -= this.speedX;
-			for(var i = 0; i < this.startingPositions.length; i++)
+			else
 			{
-				this.startingPositions[i] -= this.speedX;
+				this.x -= this.speedX;
+				for(var i = 0; i < this.startingPositions.length; i++)
+				{
+					this.startingPositions[i] -= this.speedX;
+				}
 			}
 		}
 	}
@@ -359,7 +451,7 @@ class enemy extends component
 		for(var i = 0; i < this.startingPositions.length; i++)
 		{
 			//calculates an angle between 45 and 90 degs	
-			newLength = randomIntFromInterval(100,500);
+			newLength = randomIntFromInterval(50,550);
 			newHasBait = Math.random() >= 0.5;
 			if(!this.isRight)
 			{
@@ -412,6 +504,62 @@ class enemy extends component
 		this.drawLines();
 		
 	}
+
+	isOffScreen()
+	{
+		var tempHook;
+		var boatOffScreen = false;
+
+		if(this.isRight)
+		{
+			if(this.x > myGameArea.canvas.width)
+			{
+				boatOffScreen = true;
+			}
+		}
+		else
+		{
+			if(this.x + this.width < 0)
+			{
+				boatOffScreen = true;
+			}
+		}
+
+		//if the boat is not off the screen, there is no reason to delete it
+		if(!boatOffScreen)
+		{
+			return false;
+		}
+
+		var numHooksOff = 0;
+		for(var i = 0; i < this.linesArray.length; i++)
+		{
+			tempHook = this.linesArray[i].hook;
+			if(this.isRight)
+			{
+				if(tempHook.x > myGameArea.canvas.width)
+				{
+					numHooksOff++;
+				}
+			}
+			else
+			{
+				if(tempHook.x + tempHook.width < 0)
+				{
+					numHooksOff++;
+				}
+			}
+		}
+		//returns true if all hooks are off the screen
+		if(numHooksOff == this.linesArray.length)
+		{
+			return true;
+		}
+		else
+		{
+			return false;
+		}
+	}
 }
 
 //line class, not a component because not a rectangle
@@ -426,11 +574,12 @@ class line
 		this.isRight = isRight;
 		this.endPos = new Array();
 		this.calculateEndPos();
+		this.hasBait = hasBait;
 		if(hasBait)
 		{
-			this.baitPoint;
+			this.baitPoint = new Array();
 			this.generateBaitPoint();
-			this.lineBait = new bait();
+			this.lineBait = new bait(this.baitPoint[0],this.baitPoint[1], this);
 		}
 		var xPos;
 		var yPos;
@@ -442,7 +591,8 @@ class line
 		{
 			xPos = this.endPos[0] - 12;
 		}
-		this.hook = new hook(24,24,["hook.png"],xPos,this.endPos[1],"image",this.isRight,this.speed);
+		this.hook = new hook(24,24,["hook.png"],xPos,this.endPos[1],"image",this.isRight,this.speed,this);
+		this.isReeling = false;
 	}
 
 	//hitting a line will slow the player down (unless obtaining bait)
@@ -454,19 +604,41 @@ class line
 	//move the start position of the line before next update
 	newPos()
 	{
-		if(this.isRight)
+		if(!gameControl.isPaused)
 		{
-			this.startPos[0] += this.speed;
-			this.endPos[0] += this.speed;
+			if(this.isRight)
+			{
+				this.startPos[0] += this.speed;
+				this.endPos[0] += this.speed;
+				if(this.hasBait)
+					this.baitPoint[0] += this.speed;
 
+			}
+			else
+			{
+				this.startPos[0] -= this.speed;
+				this.endPos[0] -= this.speed;
+				if(this.hasBait)
+					this.baitPoint[0] -= this.speed;
+			}
 		}
-		else
+		if(this.isReeling)
 		{
-			this.startPos[0] -= this.speed;
-			this.endPos[0] -= this.speed;
+			if(this.length >= 0)
+			{
+				this.length -= 3;
+				this.calculateEndPos();
+			}
+			else
+			{
+				length = 0;
+				this.isReeling = false;
+			}
+
 		}
 		this.hook.newPos();
-
+		if(this.hasBait)
+			this.lineBait.newPos();
 	}
 
 	calculateEndPos()
@@ -486,6 +658,8 @@ class line
 		ctx.stroke();
 		//draw the hook
 		this.hook.update();
+		if(this.hasBait)
+			this.lineBait.update();
 	}
 
 	//moveline - later when I add up and down movement to line
@@ -496,18 +670,35 @@ class line
 	//will be used to generate a point to put the bait on the line
 	generateBaitPoint()
 	{
+		//bait will be randomly placed from halfway down the line to the end
+		var baitLength = randomIntFromInterval((this.length / 2), this.length);
 
+		//get x position of bait
+		this.baitPoint[0] =  this.startPos[0] + (baitLength * Math.cos(Math.PI *this.angle / 180));
+		//get y position of bait
+		this.baitPoint[1] = this.startPos[1] + (baitLength * Math.sin(Math.PI *this.angle / 180));
 	}
 }
 class bait extends component
 {
+	constructor(x,y, parentLine)
+	{
+		super(24,24, ["bait.png"], x, y, "image", parentLine.isRight);
+		this.parentLine = parentLine;
+	}
 
+	newPos()
+	{
+
+		this.x = this.parentLine.baitPoint[0] - 12;
+		this.y = this.parentLine.baitPoint[1];	
+	}
 }
 
 //hook class
 class hook extends component
 {	
-	constructor(width, height, images, x, y, type, isRight, speed)
+	constructor(width, height, images, x, y, type, isRight, speed, parentLine)
 	{
 		super(width, height, images, x, y, type, isRight);
 		if(isRight)
@@ -515,18 +706,15 @@ class hook extends component
 			this.x = this.x - this.width;
 		}
 		this.speedX = speed;
+		this.parentLine = parentLine;
 	}
 
+	//making it so the hook is always on the end of the line, no matter where it moves to
 	newPos()
 	{
-		if(this.isRight)
-		{
-			this.x += this.speedX;
-		}
-		else
-		{
-			this.x -= this.speedX;
-		}
+
+		this.x = this.parentLine.endPos[0] - 12;
+		this.y = this.parentLine.endPos[1];	
 	}
 
 	update()

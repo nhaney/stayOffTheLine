@@ -1,0 +1,23 @@
+Gameplay:
+
+	Top Priority:
+		-Add in game over (player collision with hook)
+		-Add in bait
+		-Add in score when collecting bait (player collision with bait)
+	Medium Priority:
+		-Add in method to deallocate ships that are off the screen
+		-Tweak settings so game is fun to play
+		-images for the boats (maybe draw the boats, randomly select color)
+	Low Priority (things to add in the future)
+		-Change sky color, maybe add graphics
+		-Change water color based on sky color (can change every few seconds)
+		-Animate bait
+		-Add in currents player can travel on (randomly generated)
+		-Add in abilities/powerups for bait collected
+Menu:
+	Top priority:
+		-Make Main Menu with play, and high scores
+		-Make Game Over Menu with restart, go back to main menu, and indication if you got a high score
+		-Save high scores to local storage, display them in high scores screen or on main menu screen (this would be easier)
+	Medium Priority:
+		-
