@@ -1,11 +1,11 @@
 Gameplay:
 
 	Top Priority:
-		-Add in game over (player collision with hook)
-		-Add in bait
-		-Add in score when collecting bait (player collision with bait)
+		XAdd in game over (player collision with hook)
+		XAdd in bait
+		XAdd in score when collecting bait (player collision with bait)
 	Medium Priority:
-		-Add in method to deallocate ships that are off the screen
+		XAdd in method to deallocate ships that are off the screen
 		-Tweak settings so game is fun to play
 		-images for the boats (maybe draw the boats, randomly select color)
 	Low Priority (things to add in the future)

@@ -87,6 +87,11 @@ function updateGameArea() {
     if (myGameArea.keys && myGameArea.keys[40]) {
     	myGamePiece.speedY = 5; 
     }
+    if (myGameArea.keys && myGameArea.keys[32])
+    {
+    	if(myGamePiece.totalBoosts && (myGamePiece.speedX != 0 || myGamePiece.speedY != 0))
+    		myGamePiece.boost();
+    }
     //get water area
     waterArea.update();
     //get enemies
@@ -108,6 +113,13 @@ function updateGameArea() {
 	    var j = 0;
 	    for(var i = 0; i < enemies.length; i++)
 	    {
+	    	if(myGamePiece.checkCollision(enemies[i]))
+	    	{
+	    		gameControl.isPaused = true;
+	    		gameControl.isGameOver = true;
+	    		break;
+	    	}
+
 	    	for(j = 0; j < enemies[i].linesArray.length; j++)
 	    	{
 	    		if(myGamePiece.checkCollision(enemies[i].linesArray[j].hook))
@@ -126,6 +138,7 @@ function updateGameArea() {
 	    				gameControl.score += 5;
 	    				enemies[i].linesArray[j].hasBait = false;
 	    				delete enemies[i].linesArray[j].lineBait;
+	    				myGamePiece.totalBoosts++;
 	    			}
 	    		}
 	    	}
@@ -259,6 +272,7 @@ class player extends component
 		this.playerAnimCount = 0;
 		this.curPlayerAnimIndex = 0;
 		this.hookAttached = null;
+		this.totalBoosts = 0;
 	}
 
 	updateAnim()
@@ -334,22 +348,51 @@ class player extends component
     	}
     	if(gameControl.isGameOver)
     	{
-    		this.loseAnimation();
+    		if(this.hookAttached)
+    		{
+    			this.loseAnimationHook();
+    		}
+    		else
+    		{
+    			if(this.y >= waterArea.y - 32)
+    				this.y--;
+    		}
     	}      
 	}
 
-	loseAnimation()
+	loseAnimationHook()
 	{
 		//later I will make fish turn to face angle of line, for now I do not need this
 		this.x = this.hookAttached.x;
 		this.y = this.hookAttached.y;
+	}
+
+	boost()
+	{
+		if(this.speedX > 0)
+		{
+			this.speedX += 25;
+		}
+		if(this.speedX < 0)
+		{
+			this.speedX -= 25;
+		}
+		if(this.speedY > 0)
+		{
+			this.speedY += 25;
+		}
+		if(this.speedY < 0)
+		{
+			this.speedY -= 25;
+		}
+		myGamePiece.totalBoosts--;
 	}
 }
 
 function generateEnemy()
 {
 	var newWidth = randomIntFromInterval(32,128);
-	var newHeight = randomIntFromInterval(16,32);
+	var newHeight = 32;
 	var spawnLoc = Math.floor((Math.random() * 2) + 1);
 	var newY;
 	var newX;
@@ -451,7 +494,7 @@ class enemy extends component
 		for(var i = 0; i < this.startingPositions.length; i++)
 		{
 			//calculates an angle between 45 and 90 degs	
-			newLength = randomIntFromInterval(50,550);
+			newLength = randomIntFromInterval(45,510);
 			newHasBait = Math.random() >= 0.5;
 			if(!this.isRight)
 			{
