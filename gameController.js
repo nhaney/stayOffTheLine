@@ -89,8 +89,14 @@ function updateGameArea() {
     }
     if (myGameArea.keys && myGameArea.keys[32])
     {
-    	if(myGamePiece.totalBoosts && (myGamePiece.speedX != 0 || myGamePiece.speedY != 0))
+    	if(myGamePiece.boostCd)
+    	{
+    		myGamePiece.boostCd--;
+    	}
+    	else if(myGamePiece.totalBoosts && (myGamePiece.speedX != 0 || myGamePiece.speedY != 0) && !myGamePiece.isBoosting)
+    	{
     		myGamePiece.boost();
+    	}
     }
     //get water area
     waterArea.update();
@@ -138,7 +144,11 @@ function updateGameArea() {
 	    				gameControl.score += 5;
 	    				enemies[i].linesArray[j].hasBait = false;
 	    				delete enemies[i].linesArray[j].lineBait;
-	    				myGamePiece.totalBoosts++;
+	    				//limits three boosts
+	    				if(myGamePiece.totalBoosts < 3)
+	    					myGamePiece.totalBoosts++;
+	    				//add to hunger timer
+	    				myGamePiece.hungerTimer += 120;
 	    			}
 	    		}
 	    	}
@@ -166,6 +176,13 @@ function updateGameArea() {
 	    gameControl.enemTimer++;
 	    if(gameControl.gameTimer % 60 == 0)
 	    	gameControl.score++;
+	    myGamePiece.hungerTimer--;
+	    if(myGamePiece.hungerTimer < 0)
+	    {
+	    	gameControl.isPaused = true;
+	    	gameControl.isGameOver = true;
+	    	myGamePiece.starve();
+	    }
 	}
 
     //spawns enemy based on difficulty
@@ -221,6 +238,7 @@ class component{
 	    this.x = x;
 	    this.y = y;    
 	    this.isRight = isRight;
+	    this.shouldFlipY = false;
 	}
 	update()
 	{
@@ -228,22 +246,44 @@ class component{
 	    if (this.type == "image") {
 	    	if(!this.isRight)
 	    	{
-	    		ctx.save();
-				ctx.scale(-1, 1);
-				ctx.drawImage(this.image, 
-		        -this.x - this.width, 
-		        this.y,
-		        this.width, this.height);
-		        ctx.restore();
+	    		if(this.shouldFlipY)
+	       		{
+		       		ctx.save();
+		       		ctx.scale(-1,-1);
+		       		ctx.drawImage(this.image,-this.x -this.width,-this.y - this.height);
+		       		ctx.restore();
+	       		}
+	       		else
+	       		{
+		    		ctx.save();
+					ctx.scale(-1, 1);
+					ctx.drawImage(this.image, 
+			        -this.x - this.width, 
+			        this.y,
+			        this.width, this.height);
+			        ctx.restore();
+		    	}
 	    	}
 	    	else
 	    	{
-			    ctx.drawImage(this.image, 
-		        this.x, 
-		        this.y,
-		        this.width, this.height);
+	    		if(this.shouldFlipY)
+	      		{
+		       		ctx.save();
+		       		ctx.scale(1,-1);
+		       		ctx.drawImage(this.image,this.x,-this.y - this.height);
+		       		ctx.restore();
+	       		}
+	       		else
+	       		{
+				    ctx.drawImage(this.image, 
+			        this.x, 
+			        this.y,
+			        this.width, this.height);
+				}
 	       }
+
   		}
+  		//fill in rect if no image passed
   		else{
 		    ctx.fillStyle = this.images;
 		    ctx.fillRect(this.x, this.y, this.width, this.height);
@@ -272,7 +312,15 @@ class player extends component
 		this.playerAnimCount = 0;
 		this.curPlayerAnimIndex = 0;
 		this.hookAttached = null;
-		this.totalBoosts = 0;
+
+		//boost related variables to keep track of
+		this.totalBoosts = 3;
+		this.isBoosting = false;
+		this.boostLocation = new Array(0,0);
+		this.boostLength = 100; //length of boost in pixels
+		this.boostDuration = 5; //duration of boost in frames
+		this.boostCd = 0;
+		this.hungerTimer = 1800;
 	}
 
 	updateAnim()
@@ -301,36 +349,72 @@ class player extends component
 			var borderCollisionX = false;
 	    	var borderCollisionY = false;
 
-	    	if(this.x + this.speedX > myGameArea.canvas.width - this.width)
+	    	//these variables will hold the speed of x that we are adding to player (depends on whether player is boosting or not)
+	    	var tempSpeedX;
+	    	var tempSpeedY;
+
+	    	if(this.isBoosting)
 	    	{
-	    		this.x = this.x;
+				if(this.x != this.boostLocation[0])
+				{
+					if(this.x <= this.boostLocation[0])
+						tempSpeedX = this.boostLength / this.boostDuration;
+					else
+						tempSpeedX = (this.boostLength / this.boostDuration) * -1;
+				}
+				else
+				{
+					tempSpeedX = 0;
+				}
+				if(this.y != this.boostLocation[1])
+				{
+					if(this.y <= this.boostLocation[1])
+						tempSpeedY = this.boostLength / this.boostDuration;
+					else
+						tempSpeedY = (this.boostLength / this.boostDuration) * -1;
+				}
+				else
+				{
+					tempSpeedY = 0;
+				}
+	    	}
+	    	else
+	    	{
+	    		tempSpeedX = this.speedX;
+	    		tempSpeedY = this.speedY;
+	    	}
+
+	    	if(this.x + tempSpeedX > myGameArea.canvas.width - this.width)
+	    	{
+	    		this.x = myGameArea.canvas.width - this.width;
 	    		borderCollisionX = true;
 
 	    	}
-	    	if(this.x + this.speedX < 0)
+	    	if(this.x + tempSpeedX < 0)
 	    	{
-	    		this.x = this.x;
+	    		this.x = 0;
 	    		borderCollisionX = true;
 	    	}
-	    	if(this.y + this.speedY > myGameArea.canvas.height - this.height)
+	    	if(this.y + tempSpeedY > myGameArea.canvas.height - this.height)
 	    	{
-	    		this.y = this.y;
+	    		this.y = myGameArea.canvas.height - this.height;
 	    		borderCollisionY = true;
 	    	}
-	    	if(this.y + this.speedY < 100)
+	    	if(this.y + tempSpeedY < 100)
 	    	{
-	    		this.y = this.y;
+	    		this.y = 100;
 	    		borderCollisionY = true;
 	    	}
 	    	if(!borderCollisionX)
 	    	{
-	    		this.x += this.speedX; 
+	    		this.x += tempSpeedX; 
 	    	}    
 	    	if(!borderCollisionY)
 	    	{
-	    		this.y += this.speedY;
-	    		//gravity underwater
-	    		this.y += 0.5;
+	    		this.y += tempSpeedY;
+	    		//gravity underwater (only when not boosting)
+	    		if(!this.isBoosting)
+	    			this.y += 0.5;
 	    	}	
 
 	    	if(this.speedX != 0 || this.speedY != 0)
@@ -341,17 +425,34 @@ class player extends component
 		    {
 		    	this.playerAnimCount = 0;
 		    	this.curPlayerAnimIndex = 0;
-		    	this.image.src = this.images[this.curPlayerAnimIndex];
-		    	
+		    	this.image.src = this.images[this.curPlayerAnimIndex];	
 	    	}    
+
+	    	if(this.isBoosting)
+	    	{
+	    		if(this.x == this.boostLocation[0] && this.y == this.boostLocation[1])
+	    		{
+	    			this.isBoosting = false;
+	    			//cooldown for boost - in frames
+	    			this.boostCd = 5;
+	    		}
+	    	}
 	    	this.updateAnim();   
     	}
     	if(gameControl.isGameOver)
     	{
+    		//lost because of hook
     		if(this.hookAttached)
     		{
     			this.loseAnimationHook();
     		}
+    		//lost because of hunger timer
+    		else if(this.hungerTimer <= 0)
+    		{
+    			if(this.y >= waterArea.y - 16)
+    				this.y -= 3;
+    		}
+    		//lost because of collision with enemy boat
     		else
     		{
     			if(this.y >= waterArea.y - 32)
@@ -371,21 +472,96 @@ class player extends component
 	{
 		if(this.speedX > 0)
 		{
-			this.speedX += 25;
+			this.boostLocation[0] = this.x + this.boostLength;
+			if(this.boostLocation[0] > myGameArea.canvas.width - this.width)
+			{
+				this.boostLocation[0] = myGameArea.canvas.width - this.width;
+			}
 		}
-		if(this.speedX < 0)
+		else if(this.speedX < 0)
 		{
-			this.speedX -= 25;
+			this.boostLocation[0] = this.x - this.boostLength;
+			if(this.boostLocation[0] < 0)
+			{
+				this.boostLocation[0] = 0;
+			}
+		}
+		else
+		{
+			this.boostLocation[0] = this.x;
 		}
 		if(this.speedY > 0)
 		{
-			this.speedY += 25;
+			this.boostLocation[1] = this.y + this.boostLength;
+			if(this.boostLocation[1] > myGameArea.canvas.height - this.height)
+			{
+				this.boostLocation[1] = myGameArea.canvas.height - this.height;
+			}
 		}
-		if(this.speedY < 0)
+		else if(this.speedY < 0)
 		{
-			this.speedY -= 25;
+			this.boostLocation[1] = this.y - this.boostLength;
+			if(this.boostLocation[1] < 100)
+			{
+				this.boostLocation[1] = 100;
+			}
 		}
-		myGamePiece.totalBoosts--;
+		else
+		{
+			this.boostLocation[1] = this.y;
+		}
+		this.totalBoosts--;
+		this.isBoosting = true;
+	}
+
+	drawBoostCircles(ctx)
+	{
+		var tempX;
+		var tempY;
+		for(var i = 1; i <= 3; i++)
+		{
+			tempX = this.x + ((this.width / 2) * (i - 1));
+			tempY = this.y - 8;
+			ctx.beginPath();
+			ctx.arc(tempX,tempY,6,0,2 * Math.PI, false);
+			//full circle - if there is a boost, fill the circle
+			if(i <= this.totalBoosts)
+			{
+				ctx.fillStyle = 'pink';
+				ctx.fill();
+			}
+			//empty circle - no boost
+			ctx.strokeStyle = 'hotpink';
+			ctx.stroke();
+
+		}
+	}
+
+	starve()
+	{
+		this.shouldFlipY = true;
+	}
+
+	drawHungerTimer(ctx)
+	{
+		ctx.font = "30px Comic Sans MS";
+		if(this.hungerTimer > 300)
+			ctx.fillStyle = "hotpink";
+		else
+			ctx.fillStyle = "red";
+		ctx.textAlign = "center";
+		if(!this.isGameOver)
+			ctx.fillText("" + Math.round(this.hungerTimer / 60), this.x + (this.width / 2), this.y - 16);
+	}
+
+	update()
+	{
+		if(!gameControl.isGameOver)
+		{
+			this.drawHungerTimer(myGameArea.context);
+			this.drawBoostCircles(myGameArea.context);
+		}
+		super.update();
 	}
 }
 
@@ -527,6 +703,7 @@ class enemy extends component
 			{
 				ctx.lineTo(this.startingPositions[i] - 15,this.y - 15);
 			}
+			ctx.strokeStyle = 'black';
 			ctx.stroke();
 		}
 	}
@@ -667,6 +844,11 @@ class line
 		}
 		if(this.isReeling)
 		{
+			if(this.hasBait)
+			{
+				this.hasBait = false;
+				delete this.lineBait;
+			}
 			if(this.length >= 0)
 			{
 				this.length -= 3;
@@ -698,6 +880,7 @@ class line
 		ctx.beginPath();
 		ctx.moveTo(this.startPos[0],this.startPos[1]);
 		ctx.lineTo(this.endPos[0],this.endPos[1]);
+		ctx.strokeStyle = 'black';
 		ctx.stroke();
 		//draw the hook
 		this.hook.update();
