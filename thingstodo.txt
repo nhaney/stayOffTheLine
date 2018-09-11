@@ -1,13 +1,22 @@
 Gameplay:
 	-Add in boat graphics (possibly 2 animations, 1 when catching fish 1 regular)
-	-Add in worm animation
+	XAdd in worm animation
 	-Add in Skybox area
 	-Generate and add in sfx (boost, eat, hooked, bgm, hit boat)
-	-Balance game so that it is more balanced (hunger timer, boost length, enemies spawning, etc.)
+	-Balance game (hunger timer, boost length, enemies spawning, etc.)
 	-Make fonts fancier, not comic sans lol
 	-Display "HOOKED", "STARVED", "BONKED", etc. depending on how you died
 	-Change name of page and icon (fish)
 	-Change background of HTML page
+	-All boats leave except boat that caught the fish
+	XAdd WASD controls
+	-Add restart button and prompt on game over
+	-Pause functionality (maybe a button, click or press p to pause)
 Menu:
-	-Add in High Scores on side in HTML, updates every time game is finished with local storage
-	-Add in how to play on the bottom or side in HTML as well
+	XAdd in High Scores on side in HTML, updates every time game is finished with local storage
+	XAdd in how to play on the bottom or side in HTML as well
+	-Stylize HTML page
+Final Deliverable
+	-Minify Code
+	-Zip up, make sure it is less than 13k
+	-clear out all console errors

@@ -37,6 +37,7 @@ class gameStateController
 }
 
 function startGame() {
+	updateLocalStorage(0);
 	gameControl = new gameStateController();
     myGameArea.start();
     waterArea = new component(800,550, "lightblue", 0, 100);
@@ -49,8 +50,10 @@ var myGameArea = {
     start : function() {
         this.canvas.width = 800;
         this.canvas.height = 600;
+        this.canvas.innerHTML = "Your Browser does not support HTML5 canvas!"
         this.context = this.canvas.getContext("2d");
-        document.body.insertBefore(this.canvas, document.body.childNodes[0]);
+        var insertPoint = document.getElementById("gameColumn");
+        insertPoint.appendChild(this.canvas);
         //for 60 fps
         this.interval = setInterval(updateGameArea, 16.6666666667);
         window.addEventListener('keydown', function (e) {
@@ -71,20 +74,20 @@ function updateGameArea() {
     myGamePiece.speedX = 0;
     myGamePiece.speedY = 0;    
     
-    if (myGameArea.keys && myGameArea.keys[37]) {
+    if (myGameArea.keys && (myGameArea.keys[37] || myGameArea.keys[65])) {
     	myGamePiece.speedX = -5;
     	if(!gameControl.isPaused)
     		myGamePiece.isRight = false;
     }
-    if (myGameArea.keys && myGameArea.keys[39]) {
+    if (myGameArea.keys && (myGameArea.keys[39] || myGameArea.keys[68])) {
     	myGamePiece.speedX = 5; 
     	if(!gameControl.isPaused)
     		myGamePiece.isRight = true;
     }
-    if (myGameArea.keys && myGameArea.keys[38]) {
+    if (myGameArea.keys && (myGameArea.keys[38] || myGameArea.keys[87])) {
     	myGamePiece.speedY = -5; 
     }
-    if (myGameArea.keys && myGameArea.keys[40]) {
+    if (myGameArea.keys && (myGameArea.keys[40] || myGameArea.keys[83])) {
     	myGamePiece.speedY = 5; 
     }
     if (myGameArea.keys && myGameArea.keys[32])
@@ -123,6 +126,7 @@ function updateGameArea() {
 	    	{
 	    		gameControl.isPaused = true;
 	    		gameControl.isGameOver = true;
+	    		updateLocalStorage(gameControl.score);
 	    		break;
 	    	}
 
@@ -133,6 +137,7 @@ function updateGameArea() {
 	    			//pause + gameover if player hits hook
 	    			gameControl.isPaused = true;
 	    			gameControl.isGameOver = true;
+	    			updateLocalStorage(gameControl.score);
 	    			enemies[i].linesArray[j].isReeling = true;
 	    			myGamePiece.hookAttached = enemies[i].linesArray[j].hook;
 	    		}
@@ -181,6 +186,7 @@ function updateGameArea() {
 	    {
 	    	gameControl.isPaused = true;
 	    	gameControl.isGameOver = true;
+	    	updateLocalStorage(gameControl.score);
 	    	myGamePiece.starve();
 	    }
 	}
@@ -602,7 +608,7 @@ function generateEnemy()
 	{
 		newNumPoles = randomIntFromInterval(1,4);
 	}
-	enemies.push(new enemy(newWidth, newHeight, "red", newX, newY, "", newIsRight, newSpeed, newNumPoles));
+	enemies.push(new enemy(newWidth, newHeight,["boat.png"], newX, newY, "image", newIsRight, newSpeed, newNumPoles));
 }
 
 //enemy class
@@ -897,7 +903,7 @@ class line
 	generateBaitPoint()
 	{
 		//bait will be randomly placed from halfway down the line to the end
-		var baitLength = randomIntFromInterval((this.length / 2), this.length);
+		var baitLength = randomIntFromInterval((this.length / 2), this.length - 10);
 
 		//get x position of bait
 		this.baitPoint[0] =  this.startPos[0] + (baitLength * Math.cos(Math.PI *this.angle / 180));
@@ -905,19 +911,48 @@ class line
 		this.baitPoint[1] = this.startPos[1] + (baitLength * Math.sin(Math.PI *this.angle / 180));
 	}
 }
+
+//bait class, feeds player, gives boost, and increases score by 5
 class bait extends component
 {
 	constructor(x,y, parentLine)
 	{
-		super(24,24, ["bait.png"], x, y, "image", parentLine.isRight);
+		super(24,24, ["bait1.png","bait2.png"], x, y, "image", parentLine.isRight);
 		this.parentLine = parentLine;
+		this.animCount = 0;
+		this.curAnimIndex = 0;
+		this.animLength = randomIntFromInterval(10,20);
+	}
+
+	updateAnim()
+	{
+		if(this.animCount > this.animLength)
+	    {
+	    	if(this.curAnimIndex == (this.images.length - 1))
+	    	{
+	    		this.image.src = this.images[0];
+	    		this.curAnimIndex = 0;
+	    	}
+	    	else
+	    	{
+	   			this.curAnimIndex++;
+	    		this.image.src = this.images[this.curAnimIndex];
+	    	}
+
+	    	this.animCount = 0;
+	    }
 	}
 
 	newPos()
 	{
 
 		this.x = this.parentLine.baitPoint[0] - 12;
-		this.y = this.parentLine.baitPoint[1];	
+		this.y = this.parentLine.baitPoint[1];
+		if(!gameControl.isPaused)
+		{
+			this.animCount++;
+			this.updateAnim();	
+		}
 	}
 }
 
@@ -953,6 +988,68 @@ class hook extends component
 function randomIntFromInterval(min,max)
 {
     return Math.floor(Math.random()*(max-min+1)+min);
+}
+
+function updateLocalStorage(score)
+{
+	//init if there is no local storage already
+	if(localStorage.getItem("scores") == null)
+	{
+		initLocalStorage();
+	}
+	//get array out of local storage
+	var tempLocalArray = JSON.parse(localStorage.getItem("scores"));
+	for(var i = 0; i < localStorage.length; i++)
+	{
+		if(tempLocalArray[i] < score)
+		{
+			//insert into array if score is higher than one at index
+			tempLocalArray.splice(i, 0, score);
+			break;
+		}
+	}
+
+	if(tempLocalArray.length > 10)
+	{
+		tempLocalArray.splice(10,10);
+	}
+
+	//save updated array back to local storage
+
+	localStorage.setItem("scores", JSON.stringify(tempLocalArray));
+
+	//displays scores on HTML
+	displayScores();
+
+}
+
+function initLocalStorage()
+{
+	var tempArray = new Array();
+	for(var i = 0; i < 10; i++)
+	{
+		tempArray.push(0);
+	}
+	localStorage.setItem("scores", JSON.stringify(tempArray));
+}
+
+function displayScores()
+{
+	var table = document.getElementById("scoreTable");
+	table.innerHTML = "";
+	var tempLocalArray = JSON.parse(localStorage.getItem("scores"));
+
+	for(var i = 0; i < tempLocalArray.length; i++)
+	{
+		if(tempLocalArray[i])
+		{
+			var tempRow = table.insertRow(i);
+			var cell1 = tempRow.insertCell(0);
+			var cell2 = tempRow.insertCell(1);
+			cell1.innerHTML = (i+1) + ".";
+			cell2.innerHTML = tempLocalArray[i];
+		}	
+	}
 }
 
 

@@ -2,15 +2,35 @@
 <html>
 
 <head>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<link rel="stylesheet" href="game.css" type="text/css">
+	<title>Stay Off the Line!</title>
 </head>
 
 <body onload="startGame()">
 	<h1>Stay Off the Line!</h1>
 
+	<div class="row">
+		<div class="column1" style="background-color:lightgreen">
+			<div id="highScores">
+				<p>High Scores</p>
+				<table id="scoreTable"></table>
+			</div>
+		</div>
+		<div class="column2" id="gameColumn" style="background-color:blue">
+		</div>
+		<div class="column1" style="background-color:green">
+			<div id="howTo">
+				<p> 
+					Use arrow keys or WASD to move your fish around the ocean.<br>
+					Press space to use a boost, to get more boosts, eat more worms!<br>
+					Don't starve, and most importantly, Stay Off the Line!<br>
+				</p>
+			</div>
+		</div>
+	</div>
+
 <script type="text/javascript" src="gameController.js">
-</script>
-<script type="text/javascript" src="menuController.js">	
 </script>
 
 </body>
