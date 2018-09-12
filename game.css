@@ -5,6 +5,15 @@ body{
 h1{
 	text-align:center;
 	font-family:"Comic Sans MS", cursive, sans-serif;
+    font-size: 50px;
+}
+
+h2{
+    font-family:"Arial", cursive, sans-serif;
+}
+
+p{
+    font-family:"Arial", cursive, sans-serif;
 }
 
 canvas {
@@ -28,18 +37,12 @@ canvas {
 }
 
 /* Create three equal columns that floats next to each other */
-.column1 {
+.column {
     float: left;
-    width: 25%;
+    width: 33.33%;
     padding: 10px;
 }
 
-.column2
-{
-	float: left;
-    width: 50%;
-    padding: 10px;
-}
 /* Clear floats after the columns */
 .row:after {
     content: "";
@@ -47,23 +50,49 @@ canvas {
     clear: both;
 }
 
-table
-{
-    background-color: yellow;
-    box-shadow: 10px 10px 5px grey;
-}
-
 /* Responsive layout - makes the three columns stack on top of each other instead of next to each other */
-@media screen and (max-width: 600px) {
+@media screen and (max-width: 2000px) {
     .column {
         width: 100%;
     }
+    #howTo{
+        text-align:left;
+    }
+}
+
+table
+{
+    background-color: grey;
+    border-collapse: collapse;
+    font-family:"Arial", cursive, sans-serif;
+}
+
+td
+{
+    border-bottom: 1px solid #ddd;
+    padding: 20px;
+}
+
+tr:nth-child(1) 
+{
+    background-color: #b29600;
+}
+
+tr:nth-child(2) 
+{
+    background-color: #c0c0c0;
+}
+
+tr:nth-child(3) 
+{
+    background-color: #cd7f32;
 }
 
 #highScores{
-
+    font-size: 20px;
 }
 
 #howTo{
 	text-align:right;
+    font-size: 20px;
 }

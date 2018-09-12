@@ -1,7 +1,9 @@
 var myGamePiece;
 var waterArea;
+var skyArea;
 var enemies = new Array();
 var gameControl;
+var myPauseButton;
 
 class gameStateController
 {
@@ -21,28 +23,52 @@ class gameStateController
 		this.score = 0;
 		this.isPaused = false;
 		this.isGameOver = false;
+		this.deathString = "";
 	}
 
 	updateScore()
 	{
 		var ctx = myGameArea.context;
-		ctx.font = "30px Comic Sans MS";
-		ctx.fillStyle = "red";
+		ctx.font = "30px Arial";
+		
 		ctx.textAlign = "left";
 		if(!this.isGameOver)
+		{
+			ctx.fillStyle = "green";
 			ctx.fillText("Score: " + this.score, 10, 50);
+		}
 		else
-			ctx.fillText("Game Over, You Scored: " + this.score, 10, 50);
+		{
+			ctx.fillStyle = "red";
+			ctx.fillText("You Scored: " + this.score, 10, 50);
+			ctx.textAlign = "right";
+			ctx.fillText("Press [R] to Restart!", 790, 50);
+			gameOverText(this.deathString);
+		}
 	}
 }
 
 function startGame() {
 	updateLocalStorage(0);
 	gameControl = new gameStateController();
-    myGameArea.start();
+	//only initialize game area if it has not been initialized before
+	if(!myGameArea.canvas.innerHTML)
+    	myGameArea.start();
     waterArea = new component(800,550, "lightblue", 0, 100);
+    skyArea = new component(800,100, "#E6CAAD", 0, 0);
     myGamePiece = new player(32, 32, ["fish1.png","fish2.png"], 400, 275, "image", true);
-    generateEnemy();  
+    generateEnemy();
+    myPauseButton = new pauseButton(740, 10, 50, 50);
+    //with(new AudioContext)[5,7,13].map((v,i)=>{with(createOscillator())v&&start(e=[3,3,3][i]/5,connect(destination),frequency.value=988/1.06**v,type='sawtooth',)+stop(e+.2)});
+}
+
+function restartGame()
+{
+	myGameArea.clear();
+	enemies = new Array();
+	delete myGamePiece;
+	startGame();
+
 }
 
 var myGameArea = {
@@ -63,6 +89,12 @@ var myGameArea = {
         window.addEventListener('keyup', function (e) {
             myGameArea.keys[e.keyCode] = (e.type == "keydown");            
         })
+        this.canvas.addEventListener('click', function(evt) {
+			var mousePos = getMousePos(this.canvas, evt);
+			if (isInside(mousePos,myPauseButton) && !gameControl.isGameOver) {
+				gameControl.isPaused = !gameControl.isPaused;
+		    }	
+		}, false);
     }, 
     clear : function(){
         this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -101,11 +133,25 @@ function updateGameArea() {
     		myGamePiece.boost();
     	}
     }
+    if(myGameArea.keys && myGameArea.keys[82])
+    {
+    	if(gameControl.isGameOver)
+    	{
+    		restartGame();
+    	}
+    }
     //get water area
     waterArea.update();
+    //get sky area
+    skyArea.update();
+    //get pause button
+    if(!gameControl.isGameOver)
+    	myPauseButton.update();
     //get enemies
     for(var i = 0; i < enemies.length; i++)
     {
+    	if(gameControl.isGameOver && !enemies.isEnding)
+    		enemies[i].endAnimation();
     	enemies[i].newPos();
     	enemies[i].update();
     }
@@ -124,8 +170,11 @@ function updateGameArea() {
 	    {
 	    	if(myGamePiece.checkCollision(enemies[i]))
 	    	{
+	    		bonkSfx();
+	    		gameControl.deathString = "BONKED!";
 	    		gameControl.isPaused = true;
 	    		gameControl.isGameOver = true;
+	    		enemies[i].hasFish = true;
 	    		updateLocalStorage(gameControl.score);
 	    		break;
 	    	}
@@ -135,8 +184,11 @@ function updateGameArea() {
 	    		if(myGamePiece.checkCollision(enemies[i].linesArray[j].hook))
 	    		{
 	    			//pause + gameover if player hits hook
+	    			hookSfx();
+	    			gameControl.deathString = "HOOKED!";
 	    			gameControl.isPaused = true;
 	    			gameControl.isGameOver = true;
+	    			enemies[i].hasFish = true;
 	    			updateLocalStorage(gameControl.score);
 	    			enemies[i].linesArray[j].isReeling = true;
 	    			myGamePiece.hookAttached = enemies[i].linesArray[j].hook;
@@ -146,6 +198,7 @@ function updateGameArea() {
 	    		{
 	    			if(myGamePiece.checkCollision(enemies[i].linesArray[j].lineBait))
 	    			{
+	    				eatSfx();
 	    				gameControl.score += 5;
 	    				enemies[i].linesArray[j].hasBait = false;
 	    				delete enemies[i].linesArray[j].lineBait;
@@ -184,6 +237,8 @@ function updateGameArea() {
 	    myGamePiece.hungerTimer--;
 	    if(myGamePiece.hungerTimer < 0)
 	    {
+	    	starveSfx();
+	    	gameControl.deathString = "STARVED!";
 	    	gameControl.isPaused = true;
 	    	gameControl.isGameOver = true;
 	    	updateLocalStorage(gameControl.score);
@@ -326,7 +381,7 @@ class player extends component
 		this.boostLength = 100; //length of boost in pixels
 		this.boostDuration = 5; //duration of boost in frames
 		this.boostCd = 0;
-		this.hungerTimer = 1800;
+		this.hungerTimer = 150;//1800 = 30sec
 	}
 
 	updateAnim()
@@ -516,6 +571,8 @@ class player extends component
 		{
 			this.boostLocation[1] = this.y;
 		}
+		if(!gameControl.isGameOver)
+			boostSfx();
 		this.totalBoosts--;
 		this.isBoosting = true;
 	}
@@ -628,11 +685,13 @@ class enemy extends component
 		this.startingPositions = new Array();
 		this.getStartingPositions();
 		this.generateLines();
+		this.hasFish = false;
+		this.isEnding = false;
 	}
 
 	newPos()
 	{
-		if(!gameControl.isPaused)
+		if(!gameControl.isPaused || (gameControl.isGameOver && !this.hasFish))
 		{
 			//need to add bobbing up and down here
 			if(this.isRight)
@@ -651,6 +710,33 @@ class enemy extends component
 					this.startingPositions[i] -= this.speedX;
 				}
 			}
+		}
+	}
+
+	endAnimation()
+	{
+		if(!this.hasFish)
+		{
+			this.isEnding = true;
+			if(this.x + this.width > myGameArea.width / 2)
+			{
+				this.isRight = true;
+				for(var i = 0; i < linesArray.length; i++)
+				{
+					linesArray[i].isRight = this.isRight;
+					linesArray[i].hook.isRight = this.isRight;
+					if(linesArray[i].hasBait)
+						linesArray[i].lineBait.isRight = this.isRight;
+				}
+			}
+			else
+			{
+				this.isRight = false;
+			}
+		}
+		else
+		{
+			this.isEnding = true;
 		}
 	}
 
@@ -676,7 +762,7 @@ class enemy extends component
 		for(var i = 0; i < this.startingPositions.length; i++)
 		{
 			//calculates an angle between 45 and 90 degs	
-			newLength = randomIntFromInterval(45,510);
+			newLength = randomIntFromInterval(55,510);
 			newHasBait = Math.random() >= 0.5;
 			if(!this.isRight)
 			{
@@ -984,12 +1070,54 @@ class hook extends component
 	}
 }
 
-//helper function to get random between 2 numbers
+//graphic for a pause button
+class pauseButton
+{
+	constructor(x,y,width,height)
+	{
+		//initially the game will start off playing
+		this.x = x;
+		this.y = y;
+		this.width = width;
+		this.height = height;
+		this.playing = true;
+	}
+
+	update()
+	{
+		if(gameControl.isPaused)
+			this.playing = false;
+		else
+			this.playing = true;
+
+		var ctx = myGameArea.context;
+		ctx.fillStyle = "black";
+
+		//draws pause icon
+		if(this.playing)
+		{	
+			ctx.fillRect(this.x, this.y, this.width / 3, this.height);
+			ctx.fillRect(this.x + 2 * (this.width / 3), this.y, this.width / 3, this.height);
+		}
+		//draws play icon
+		else
+		{
+			ctx.beginPath();
+			ctx.moveTo(this.x,this.y);
+			ctx.lineTo(this.x, this.y + this.height);
+			ctx.lineTo(this.x + this.width, this.y + (this.height / 2));
+			ctx.fill();
+		}
+	}
+}
+
+//HELPER FUNCTIONS BELOW
 function randomIntFromInterval(min,max)
 {
     return Math.floor(Math.random()*(max-min+1)+min);
 }
 
+//storage functions
 function updateLocalStorage(score)
 {
 	//init if there is no local storage already
@@ -999,7 +1127,7 @@ function updateLocalStorage(score)
 	}
 	//get array out of local storage
 	var tempLocalArray = JSON.parse(localStorage.getItem("scores"));
-	for(var i = 0; i < localStorage.length; i++)
+	for(var i = 0; i < tempLocalArray.length; i++)
 	{
 		if(tempLocalArray[i] < score)
 		{
@@ -1052,4 +1180,106 @@ function displayScores()
 	}
 }
 
+//mouse detection functions (only used for pause button)
+function getMousePos(canvas, event) {
+	var rect = myGameArea.canvas.getBoundingClientRect();
+	return {
+		x: event.clientX - rect.left,
+		y: event.clientY - rect.top
+	};
+}
+function isInside(pos, rect){
+	return pos.x > rect.x && pos.x < rect.x+rect.width && pos.y < rect.y+rect.height && pos.y > rect.y;
+}
+
+//displays game over text in middle of screen
+function gameOverText(text)
+{
+	var ctx = myGameArea.context;
+	ctx.font = "50px Comic Sans MS";
+	ctx.fillStyle = "black";
+	ctx.textAlign = "center";
+	ctx.fillText("" + text, 400, 300);
+}
+
+//sound effects - made with miniMusic - https://xem.github.io/miniMusic/simple.html
+function boostSfx()
+{
+	with(new AudioContext)
+	with(G=createGain())
+	for(i in D=[14,9,2])
+	with(createOscillator())
+	if(D[i])
+	connect(G),
+	G.connect(destination),
+	start(i*.05),
+	frequency.setValueAtTime(440*1.06**(13-D[i]),i*.05),type='triangle',
+	gain.setValueAtTime(1,i*.05),
+	gain.setTargetAtTime(.0001,i*.05+.03,.005),
+	stop(i*.05+.04);
+}
+
+function eatSfx()
+{
+	with(new AudioContext)
+	with(G=createGain())
+	for(i in D=[14,12,12,9])
+	with(createOscillator())
+	if(D[i])
+	connect(G),
+	G.connect(destination),
+	start(i*.075),
+	frequency.setValueAtTime(440*1.06**(13-D[i]),i*.075),type='triangle',
+	gain.setValueAtTime(1,i*.075),
+	gain.setTargetAtTime(.0001,i*.075+.05,.005),
+	stop(i*.075+.07);
+}
+
+function hookSfx()
+{
+	with(new AudioContext)
+	with(G=createGain())
+	for(i in D=[18,19,24,25,24])
+	with(createOscillator())
+	if(D[i])
+	connect(G),
+	G.connect(destination),
+	start(i*.1),
+	frequency.setValueAtTime(440*1.06**(13-D[i]),i*.1),type='triangle',
+	gain.setValueAtTime(1,i*.1),
+	gain.setTargetAtTime(.0001,i*.1+.08,.005),
+	stop(i*.1+.09);
+}
+
+function bonkSfx()
+{
+	with(new AudioContext)
+	with(G=createGain())
+	for(i in D=[22,22,23,24,23])
+	with(createOscillator())
+	if(D[i])
+	connect(G),
+	G.connect(destination),
+	start(i*.022),
+	frequency.setValueAtTime(440*1.06**(13-D[i]),i*.022),
+	gain.setValueAtTime(1,i*.022),
+	gain.setTargetAtTime(.0001,i*.022+.00,.005),
+	stop(i*.022+.01);
+}
+
+function starveSfx()
+{
+	with(new AudioContext)
+	with(G=createGain())
+	for(i in D=[21,,24,24,25])
+	with(createOscillator())
+	if(D[i])
+	connect(G),
+	G.connect(destination),
+	start(i*.22),
+	frequency.setValueAtTime(440*1.06**(13-D[i]),i*.22),
+	gain.setValueAtTime(1,i*.22),
+	gain.setTargetAtTime(.0001,i*.22+.20,.005),
+	stop(i*.22+.21)
+}
 
