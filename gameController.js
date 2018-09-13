@@ -381,7 +381,7 @@ class player extends component
 		this.boostLength = 100; //length of boost in pixels
 		this.boostDuration = 5; //duration of boost in frames
 		this.boostCd = 0;
-		this.hungerTimer = 150;//1800 = 30sec
+		this.hungerTimer = 1800;//1800 = 30sec
 	}
 
 	updateAnim()
@@ -775,7 +775,7 @@ class enemy extends component
 				newAngle = randomIntFromInterval(90,135);
 			}
 			
-			this.linesArray.push(new line(newAngle,startPos, newLength,this.speedX,this.isRight,newHasBait));
+			this.linesArray.push(new line(newAngle,startPos, newLength,this.speedX,this.isRight,newHasBait,this));
 		}
 	}
 
@@ -877,13 +877,14 @@ class enemy extends component
 //line class, not a component because not a rectangle
 class line
 {
-	constructor(angle, startPos, length, speed, isRight, hasBait)
+	constructor(angle, startPos, length, speed, isRight, hasBait, parentBoat)
 	{
 		this.angle = angle;
 		this.startPos = startPos;
 		this.length = length;
 		this.speed = speed;
 		this.isRight = isRight;
+		this.parentBoat = parentBoat;
 		this.endPos = new Array();
 		this.calculateEndPos();
 		this.hasBait = hasBait;
@@ -916,7 +917,7 @@ class line
 	//move the start position of the line before next update
 	newPos()
 	{
-		if(!gameControl.isPaused)
+		if(!gameControl.isPaused || (gameControl.isGameOver && !this.parentBoat.hasFish))
 		{
 			if(this.isRight)
 			{
